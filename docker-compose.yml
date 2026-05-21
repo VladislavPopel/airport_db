@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  postgres_db:
+    image: postgres:16-alpine
+    container_name: postgres_container
+    environment:
+      POSTGRES_USER: lab_user
+      POSTGRES_PASSWORD: lab_password
+      POSTGRES_DB: airport_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab_user -d airport_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web_app:
+    build: .
+    container_name: go_web_container
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_CONN=host=postgres_db port=5432 user=lab_user password=lab_password dbname=airport_db sslmode=disable
+    depends_on:
+      postgres_db:
+        condition: service_healthy 
+
+volumes:
+  pgdata:

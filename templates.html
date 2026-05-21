@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Управление справочниками аэропортов и рейсов</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f6f9; color: #333; }
+        .student-info { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 25px; border-left: 5px solid #007bff; }
+        .nav-tabs { margin-bottom: 20px; }
+        .nav-tabs a { padding: 10px 20px; background: #e9ecef; margin-right: 5px; text-decoration: none; color: #495057; border-radius: 5px 5px 0 0; display: inline-block; }
+        .nav-tabs a.active { background: #fff; font-weight: bold; border: 1px solid #dee2e6; border-bottom-color: transparent; color: #007bff; }
+        .content-area { background: #fff; padding: 20px; border-radius: 0 8px 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; cursor: pointer; user-select: none; }
+        th:hover { background-color: #e2e6ea; }
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 14px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-control { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ced4da; border-radius: 4px; }
+        textarea.form-control { resize: vertical; height: 80px; }
+        .modal { background: #fff; padding: 20px; border: 1px solid #ccc; border-radius: 8px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+
+    <!-- Информационная карточка студента -->
+    <div class="student-info">
+        <strong>Студент:</strong> Попёл Владислав Анатольевич <br>
+        <strong>Курс:</strong> 3 | <strong>Группа:</strong> 2(ИСУ) <br>
+        <strong>Год выполнения:</strong> 2026 г.
+    </div>
+
+    <!-- Переключение между справочниками -->
+    <div class="nav-tabs">
+        <a href="/?tab=airports" class="{{if eq .CurrentTab "airports"}}active{{end}}">Справочник: Аэропорты</a>
+        <a href="/?tab=flights" class="{{if eq .CurrentTab "flights"}}active{{end}}">Справочник: Рейсы</a>
+    </div>
+
+    <div class="content-area">
+        {{if eq .CurrentTab "airports"}}
+            <h2>Аэропорты</h2>
+            <button class="btn btn-primary" onclick="showAddForm('airport')">Добавить аэропорт</button>
+            
+            <table id="airportsTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('airportsTable', 0, 'text')">Код IATA ↕</th>
+                        <th onclick="sortTable('airportsTable', 1, 'text')">Название (описание) ↕</th>
+                        <th onclick="sortTable('airportsTable', 2, 'text')">Город ↕</th>
+                        <th onclick="sortTable('airportsTable', 3, 'text')">Страна ↕</th>
+                        <th onclick="sortTable('airportsTable', 4, 'date')">Дата открытия ↕</th>
+                        <th onclick="sortTable('airportsTable', 5, 'number')">Взлётные полосы ↕</th>
+                        <th onclick="sortTable('airportsTable', 6, 'number')">Длина ВПП (км) ↕</th>
+                        <th onclick="sortTable('airportsTable', 7, 'number')">Высота (м) ↕</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Airports}}
+                    <tr>
+                        <td>{{.IataCode}}</td>
+                        <td>{{.Name}}</td>
+                        <td>{{.City}}</td>
+                        <td>{{.Country}}</td>
+                        <td data-date="{{.OpenedDateRaw}}">{{.OpenedDateFormatted}}</td>
+                        <td>{{.RunwaysCount}}</td>
+                        <td>{{.RunwayLengthKm}}</td>
+                        <td>{{.AltitudeM}}</td>
+                        <td>
+                            <button class="btn btn-warning btn-sm" onclick="editAirport({{.ID}}, '{{.IataCode}}', '{{.Name}}', '{{.City}}', '{{.Country}}', '{{.OpenedDateRaw}}', {{.RunwaysCount}}, {{.RunwayLengthKm}}, {{.AltitudeM}})">Ред.</button>
+                            <a href="/delete?tab=airports&id={{.ID}}" class="btn btn-danger btn-sm" onclick="return confirm('Удалить этот аэропорт? Если на него ссылаются рейсы, СУБД отклонит удаление.')">Удал.</a>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+
+            <!-- Форма Аэропорта -->
+            <div id="airportFormBlock" class="modal" style="display:none;">
+                <h3 id="airportFormTitle">Добавить аэропорт</h3>
+                <form action="/save-airport" method="POST">
+                    <input type="hidden" name="id" id="airport_id">
+                    <div class="form-group">
+                        <label>Код IATA (однострочное текстовое):</label>
+                        <input type="text" name="iata_code" id="airport_iata" class="form-control" maxlength="3" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Название / Описание (многострочное текстовое поле):</label>
+                        <textarea name="name" id="airport_name" class="form-control" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Город:</label>
+                        <input type="text" name="city" id="airport_city" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Страна:</label>
+                        <input type="text" name="country" id="airport_country" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Дата открытия (календарь):</label>
+                        <input type="date" name="opened_date" id="airport_opened" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Количество полос (числовое поле):</label>
+                        <input type="number" name="runways_count" id="airport_runways" class="form-control" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Длина ВПП (км):</label>
+                        <input type="number" step="0.01" name="runway_length_km" id="airport_length" class="form-control" min="0.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Высота над уровнем моря (м):</label>
+                        <input type="number" name="altitude_m" id="airport_altitude" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="button" class="btn" onclick="hideForm('airport')">Отмена</button>
+                </form>
+            </div>
+        {{end}}
+
+        {{if eq .CurrentTab "flights"}}
+            <h2>Рейсы</h2>
+            <button class="btn btn-primary" onclick="showAddForm('flight')">Добавить рейс</button>
+            
+            <table id="flightsTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('flightsTable', 0, 'text')">Номер рейса ↕</th>
+                        <th onclick="sortTable('flightsTable', 1, 'text')">Откуда ↕</th>
+                        <th onclick="sortTable('flightsTable', 2, 'text')">Куда ↕</th>
+                        <th onclick="sortTable('flightsTable', 3, 'date')">Дата вылета ↕</th>
+                        <th onclick="sortTable('flightsTable', 4, 'number')">Длительность (мин) ↕</th>
+                        <th onclick="sortTable('flightsTable', 5, 'number')">Расстояние (км) ↕</th>
+                        <th onclick="sortTable('flightsTable', 6, 'number')">Цена ($) ↕</th>
+                        <th onclick="sortTable('flightsTable', 7, 'number')">Мест ↕</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Flights}}
+                    <tr>
+                        <td>{{.FlightNumber}}</td>
+                        <td>{{.AirportFromName}} ({{.AirportFromCity}})</td>
+                        <td>{{.AirportToName}} ({{.AirportToCity}})</td>
+                        <td data-date="{{.DepartureDateRaw}}">{{.DepartureDateFormatted}}</td>
+                        <td>{{.DurationMinutes}}</td>
+                        <td>{{.DistanceKm}}</td>
+                        <td>{{.BasePriceUsd}}</td>
+                        <td>{{.SeatsTotal}}</td>
+                        <td>
+                            <button class="btn btn-warning btn-sm" onclick="editFlight({{.ID}}, '{{.FlightNumber}}', {{.AirportFromID}}, {{.AirportToID}}, '{{.DepartureDateRaw}}', {{.DurationMinutes}}, {{.DistanceKm}}, {{.BasePriceUsd}}, {{.SeatsTotal}})">Ред.</button>
+                            <a href="/delete?tab=flights&id={{.ID}}" class="btn btn-danger btn-sm" onclick="return confirm('Удалить этот рейс?')">Удал.</a>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+
+            <!-- Форма Рейса -->
+            <div id="flightFormBlock" class="modal" style="display:none;">
+                <h3 id="flightFormTitle">Добавить рейс</h3>
+                <form action="/save-flight" method="POST">
+                    <input type="hidden" name="id" id="flight_id">
+                    <div class="form-group">
+                        <label>Номер рейса:</label>
+                        <input type="text" name="flight_number" id="flight_number" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Аэропорт вылета (Выпадающий список, хранящий внутри ID):</label>
+                        <select name="airport_from_id" id="flight_from" class="form-control" required>
+                            <option value="">-- Выберите аэропорт --</option>
+                            {{range .Airports}}
+                                <option value="{{.ID}}">{{.City}} ({{.Country}}) — {{.Name}}</option>
+                            {{end}}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Аэропорт прилёта (Выпадающий список, хранящий внутри ID):</label>
+                        <select name="airport_to_id" id="flight_to" class="form-control" required>
+                            <option value="">-- Выберите аэропорт --</option>
+                            {{range .Airports}}
+                                <option value="{{.ID}}">{{.City}} ({{.Country}}) — {{.Name}}</option>
+                            {{end}}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Дата вылета (календарь):</label>
+                        <input type="date" name="departure_date" id="flight_departure" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Продолжительность (минут):</label>
+                        <input type="number" name="duration_minutes" id="flight_duration" class="form-control" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Дистанция (км):</label>
+                        <input type="number" step="0.01" name="distance_km" id="flight_distance" class="form-control" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Базовая цена ($):</label>
+                        <input type="number" step="0.01" name="base_price_usd" id="flight_price" class="form-control" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Всего мест:</label>
+                        <input type="number" name="seats_total" id="flight_seats" class="form-control" min="1" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="button" class="btn" onclick="hideForm('flight')">Отмена</button>
+                </form>
+            </div>
+        {{end}}
+    </div>
+
+    <script>
+        // Функции управления видимостью и заполнением форм
+         Aurora = { directions: {} };
+        function showAddForm(type) {
+            document.getElementById(type + '_id').value = '';
+            if(type === 'airport') {
+                document.getElementById('airportFormTitle').innerText = 'Добавить аэропорт';
+                document.getElementById('airport_iata').value = '';
+                document.getElementById('airport_name').value = '';
+                document.getElementById('airport_city').value = '';
+                document.getElementById('airport_country').value = '';
+                document.getElementById('airport_opened').value = '';
+                document.getElementById('airport_runways').value = '';
+                document.getElementById('airport_length').value = '';
+                document.getElementById('airport_altitude').value = '0';
+            } else {
+                document.getElementById('flightFormTitle').innerText = 'Добавить рейс';
+                document.getElementById('flight_number').value = '';
+                document.getElementById('flight_from').value = '';
+                document.getElementById('flight_to').value = '';
+                document.getElementById('flight_departure').value = '';
+                document.getElementById('flight_duration').value = '';
+                document.getElementById('flight_distance').value = '';
+                document.getElementById('flight_price').value = '';
+                document.getElementById('flight_seats').value = '';
+            }
+            document.getElementById(type + 'FormBlock').style.display = 'block';
+        }
+
+        function hideForm(type) {
+            document.getElementById(type + 'FormBlock').style.display = 'none';
+        }
+
+        function editAirport(id, iata, name, city, country, opened, runways, length, alt) {
+            document.getElementById('airportFormTitle').innerText = 'Редактировать аэропорт';
+            document.getElementById('airport_id').value = id;
+            document.getElementById('airport_iata').value = iata;
+            document.getElementById('airport_name').value = name;
+            document.getElementById('airport_city').value = city;
+            document.getElementById('airport_country').value = country;
+            document.getElementById('airport_opened').value = opened;
+            document.getElementById('airport_runways').value = runways;
+            document.getElementById('airport_length').value = length;
+            document.getElementById('airport_altitude').value = alt;
+            document.getElementById('airportFormBlock').style.display = 'block';
+        }
+
+        function editFlight(id, num, fromId, toId, departure, duration, distance, price, seats) {
+            document.getElementById('flightFormTitle').innerText = 'Редактировать рейс';
+            document.getElementById('flight_id').value = id;
+            document.getElementById('flight_number').value = num;
+            document.getElementById('flight_from').value = fromId;
+            document.getElementById('flight_to').value = toId;
+            document.getElementById('flight_departure').value = departure;
+            document.getElementById('flight_duration').value = duration;
+            document.getElementById('flight_distance').value = distance;
+            document.getElementById('flight_price').value = price;
+            document.getElementById('flight_seats').value = seats;
+            document.getElementById('flightFormBlock').style.display = 'block';
+        }
+
+        // Честная сортировка таблиц (Текст, Числа, Даты)
+        function sortTable(tableId, colIdx, type) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            if (!Aurora.directions[tableId]) Aurora.directions[tableId] = {};
+            const dir = Aurora.directions[tableId][colIdx] === 'asc' ? 'desc' : 'asc';
+            Aurora.directions[tableId][colIdx] = dir;
+
+            rows.sort((rowA, rowB) => {
+                let cellA = rowA.children[colIdx];
+                let cellB = rowB.children[colIdx];
+
+                let valA = cellA.textContent.trim();
+                let valB = cellB.textContent.trim();
+
+                if (type === 'number') {
+                    return dir === 'asc' ? parseFloat(valA) - parseFloat(valB) : parseFloat(valB) - parseFloat(valA);
+                } else if (type === 'date') {
+                    let dA = new Date(cellA.getAttribute('data-date'));
+                    let dB = new Date(cellB.getAttribute('data-date'));
+                    return dir === 'asc' ? dA - dB : dB - dA;
+                } else {
+                    return dir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                }
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+</body>
+</html>
